@@ -8,30 +8,12 @@ export function uuid(): string {
   bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
 
   // Convert bytes to UUID string
-  return (
-    bytes
-      .slice(0, 4)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('') +
-    '-' +
-    bytes
-      .slice(4, 6)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('') +
-    '-' +
-    bytes
-      .slice(6, 8)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('') +
-    '-' +
-    bytes
-      .slice(8, 10)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('') +
-    '-' +
-    bytes
-      .slice(10, 16)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-  );
+  const byteToHex = (byte: number) => byte.toString(16).padStart(2, '0');
+  return [
+    bytes.slice(0, 4).map(byteToHex).join(''),
+    bytes.slice(4, 6).map(byteToHex).join(''),
+    bytes.slice(6, 8).map(byteToHex).join(''),
+    bytes.slice(8, 10).map(byteToHex).join(''),
+    bytes.slice(10, 16).map(byteToHex).join(''),
+  ].join('-');
 }
