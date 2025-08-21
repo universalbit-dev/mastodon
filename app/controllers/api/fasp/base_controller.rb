@@ -11,21 +11,25 @@ class Api::Fasp::BaseController < ApplicationController
   before_action :check_fasp_enabled
   before_action :require_authentication
 
-  # CSRF protection is enforced for all requests. If you need to disable it for trusted API clients,
+  # Only skip CSRF for truly trusted API clients.
   skip_before_action :verify_authenticity_token, if: :trusted_api_client?
-  # ensure that authentication is robust and cannot be bypassed before re-enabling the line below.
 
   after_action :sign_response
 
   private
 
   def trusted_api_client?
-    request.format.json? && authenticated_api_client?
+    # Strengthen checks: require a specific header or token, not just JSON format
+    request.format.json? && authenticated_api_client? && valid_api_client_token?
+  end
+
+  def valid_api_client_token?
+    # Example token check (customize as needed for your system/environment)
+    request.headers['X-Trusted-Api-Token'] == ENV['TRUSTED_API_TOKEN']
   end
 
   def authenticated_api_client?
     # Add logic here to verify the request is actually from an authenticated API client.
-    # For example: check for a valid token, or that require_authentication succeeded.
     current_provider.present?
   end
 
@@ -47,9 +51,11 @@ class Api::Fasp::BaseController < ApplicationController
     content_digest_header = request.headers['content-digest']
     raise Error, 'content-digest missing' if content_digest_header.blank?
 
-    digest_received = content_digest_header.match(DIGEST_PATTERN)[1]
-    digest_computed = OpenSSL::Digest.base64digest('sha256', request.body&.string || '')
+    match = content_digest_header.match(DIGEST_PATTERN)
+    raise Error, 'invalid content-digest format' if match.nil?
+    digest_received = match[1]
 
+    digest_computed = OpenSSL::Digest.base64digest('sha256', request.body&.string || '')
     raise Error, 'content-digest does not match' if digest_received != digest_computed
   end
 
