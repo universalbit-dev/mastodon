@@ -39,7 +39,7 @@ jobs:
         with:
           command: test
 
-      - name: Snyk Monitor (optional: enables continuous monitoring in Snyk UI)
+      - name: Snyk Monitor
         if: github.ref == 'refs/heads/main'
         uses: snyk/actions@v3
         env:
