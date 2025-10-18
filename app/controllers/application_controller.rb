@@ -46,7 +46,7 @@ class ApplicationController < ActionController::Base
 
   before_action :set_cache_control_defaults
 
-  skip_before_action :verify_authenticity_token, only: :raise_not_found
+  # skip_before_action :verify_authenticity_token, only: :raise_not_found -- REMOVED
 
   def raise_not_found
     raise ActionController::RoutingError, "No route matches #{params[:unmatched_route]}"
