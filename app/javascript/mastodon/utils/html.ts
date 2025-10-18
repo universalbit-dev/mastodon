@@ -5,10 +5,14 @@ import htmlConfig from '../../config/html-tags.json';
 // NB: This function can still return unsafe HTML
 export const unescapeHTML = (html: string) => {
   const wrapper = document.createElement('div');
-  wrapper.innerHTML = html
+  let text = html
     .replace(/<br\s*\/?>/g, '\n')
-    .replace(/<\/p><p>/g, '\n\n')
-    .replace(/<[^>]*>/g, '');
+    .replace(/<\/p><p>/g, '\n\n');
+  // Repeatedly remove tags until none remain
+  while (/<[^>]*>/g.test(text)) {
+    text = text.replace(/<[^>]*>/g, '');
+  }
+  wrapper.innerHTML = text;
   return wrapper.textContent;
 };
 
