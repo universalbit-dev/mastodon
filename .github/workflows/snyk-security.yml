@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [ main, master ]
   schedule:
-    # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
   workflow_dispatch:
 
@@ -24,6 +23,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -44,12 +49,12 @@ jobs:
             echo "✅ SNYK_TOKEN secret is configured"
           fi
       
-      - name: Install dependencies
+      - name: Install Node dependencies
         if: hashFiles('package.json') != ''
         run: yarn install
 
       - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/node@v3
+        uses: snyk/actions/cli@master
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -58,7 +63,7 @@ jobs:
 
       - name: Run Snyk Monitor (track project)
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: snyk/actions/node@v3
+        uses: snyk/actions/cli@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
