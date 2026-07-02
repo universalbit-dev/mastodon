@@ -1,3 +1,4 @@
+[![Snyk Security Scan](https://github.com/universalbit-dev/mastodon/actions/workflows/snyk-security.yml/badge.svg)](https://github.com/universalbit-dev/mastodon/actions/workflows/snyk-security.yml)
 > [!NOTE]
 > Want to learn more about Mastodon?
 > Click below to find out more in a video.
