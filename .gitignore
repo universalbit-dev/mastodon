@@ -79,3 +79,8 @@ docker-compose.override.yml
 
 *storybook.log
 storybook-static
+
+# TLS/private material (if ever generated locally)
+*.pem
+*.key
+*.crt
