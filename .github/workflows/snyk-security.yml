@@ -24,16 +24,15 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.3'
-          bundler-cache: true
+          ruby-version: .ruby-version
+          bundler-cache: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: yarn
+          node-version: '20'
 
-      - name: Enable Corepack and set correct Yarn version (for Yarn 4)
+      - name: Enable Corepack and activate Yarn
         run: |
           corepack enable
           corepack prepare yarn@4.12.0 --activate
@@ -42,10 +41,10 @@ jobs:
       - name: Verify Snyk token exists
         run: |
           if [ -z "${{ secrets.SNYK_TOKEN }}" ]; then
-            echo "❌ ERROR: SNYK_TOKEN secret is not set"
+            echo "ERROR: SNYK_TOKEN secret is not set"
             exit 1
           else
-            echo "✅ SNYK_TOKEN secret is configured"
+            echo "SNYK_TOKEN secret is configured"
           fi
 
       - name: Install Node dependencies
@@ -70,7 +69,7 @@ jobs:
           command: code test
           args: --severity-threshold=medium
 
-      - name: Run Snyk Monitor (track project)
+      - name: Run Snyk Monitor
         if: github.event_name == 'push' && (github.ref == 'refs/heads/unbt' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: snyk/actions/node@master
         env:
