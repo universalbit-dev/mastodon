@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mastodon
+      POSTGRES_PASSWORD: mastodon
+      POSTGRES_DB: mastodon_development
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/mastodon/mastodon:latest
+    env_file:
+      - .env.production
+    depends_on:
+      - db
+      - redis
+    command: bash -lc "bundle exec rails db:prepare && bundle exec puma -C config/puma.rb"
+    restart: unless-stopped
+
+  sidekiq:
+    image: ghcr.io/mastodon/mastodon:latest
+    env_file:
+      - .env.production
+    depends_on:
+      - db
+      - redis
+    command: bundle exec sidekiq
+    restart: unless-stopped
+
+  streaming:
+    image: ghcr.io/mastodon/mastodon:latest
+    env_file:
+      - .env.production
+    depends_on:
+      - db
+      - redis
+    command: bundle exec puma -p 4000 -C config/puma.rb
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "8443:443"
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - streaming
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
