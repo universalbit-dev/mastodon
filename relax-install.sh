@@ -4,8 +4,14 @@ set -euo pipefail
 # Relaxed Mastodon local installer (Ubuntu) using Docker from snap.
 # Works whether source came from git clone OR ZIP download.
 #
+# Usage:
+#   chmod +x relax-install.sh
+#   ./relax-install.sh          # install/start
+#   ./relax-install.sh start    # install/start
+#   ./relax-install.sh stop     # stop containers
+#   ./relax-install.sh reset    # down -v + clean generated local files
+#
 # Goal:
-#   chmod +x relax-install.sh && ./relax-install.sh
 #   -> open https://localhost:8443/explore
 
 APP_DIR="${APP_DIR:-$(pwd)}"
@@ -25,6 +31,8 @@ if [[ ! -f "package.json" ]] || [[ ! -f "Gemfile" ]]; then
   exit 1
 fi
 
+ACTION="${1:-start}"
+
 echo "==> [1/10] Install Docker via snap (if needed)"
 if ! command -v docker >/dev/null 2>&1; then
   sudo snap install docker
@@ -42,6 +50,33 @@ DOCKER="docker"
 if ! docker info >/dev/null 2>&1; then
   DOCKER="sudo docker"
 fi
+
+case "$ACTION" in
+  start)
+    # continue with full install/start flow below
+    ;;
+  stop)
+    echo "==> Stopping Mastodon stack"
+    $DOCKER compose -f docker-compose.dev.yml stop || true
+    echo "✅ Stopped."
+    exit 0
+    ;;
+  reset)
+    echo "==> Reset Mastodon stack (containers, networks, volumes)"
+    $DOCKER compose -f docker-compose.dev.yml down -v --remove-orphans || true
+
+    echo "==> Removing local generated env/config files"
+    rm -f .env.production .env.production.example docker-compose.dev.yml Caddyfile
+
+    echo "✅ Reset complete."
+    echo "Run ./relax-install.sh to recreate and start everything."
+    exit 0
+    ;;
+  *)
+    echo "Usage: $0 [start|stop|reset]"
+    exit 1
+    ;;
+esac
 
 echo "==> [3/10] Write docker-compose.dev.yml"
 cat > docker-compose.dev.yml <<EOF
@@ -222,9 +257,29 @@ echo
 echo "✅ Setup complete."
 echo "Open: https://localhost:${HTTPS_HOST_PORT}/explore"
 echo
-echo "Check status:"
+echo "Quick commands:"
+echo "  ./relax-install.sh        # install/start"
+echo "  ./relax-install.sh stop   # stop containers"
+echo "  ./relax-install.sh reset  # down -v + clean env/config files"
+echo
+echo "Container lifecycle commands:"
+echo "  Start existing containers:"
+echo "    $DOCKER compose -f docker-compose.dev.yml up -d"
+echo
+echo "  Stop containers:"
+echo "    $DOCKER compose -f docker-compose.dev.yml stop"
+echo
+echo "  Stop + remove containers (keep DB volume):"
+echo "    $DOCKER compose -f docker-compose.dev.yml down"
+echo
+echo "  Full reset (remove containers + networks + ALL volumes):"
+echo "    $DOCKER compose -f docker-compose.dev.yml down -v --remove-orphans"
+echo
+echo "Status / logs:"
 echo "  $DOCKER compose -f docker-compose.dev.yml ps"
 echo "  $DOCKER compose -f docker-compose.dev.yml logs -f web"
+echo "  $DOCKER compose -f docker-compose.dev.yml logs -f sidekiq"
+echo "  $DOCKER compose -f docker-compose.dev.yml logs -f streaming"
 echo
 echo "Security note:"
 echo "  - Commit: relax-install.sh, docker-compose.dev.yml, Caddyfile, .env.production.example"
