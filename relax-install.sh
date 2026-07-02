@@ -211,39 +211,52 @@ grep -q '^NODE_ENV=' .env.production || echo "NODE_ENV=production" >> .env.produ
 echo "==> [7/10] Start db/redis"
 $DOCKER compose -f docker-compose.dev.yml up -d db redis
 
-echo "==> [8/10] Generate Active Record encryption keys (if missing)"
+echo "==> [8/10] Ensure Active Record encryption keys exist"
+
+is_missing_or_placeholder() {
+  local key="$1"
+  local v
+  v="$(grep -E "^${key}=" .env.production | tail -n1 | cut -d= -f2- || true)"
+  [[ -z "${v}" || "${v}" == "replace_me" ]]
+}
+
+set_env_key() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" .env.production; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env.production
+  else
+    echo "${key}=${value}" >> .env.production
+  fi
+}
+
 need_keys=0
-grep -q '^ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=' .env.production || need_keys=1
-grep -q '^ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=' .env.production || need_keys=1
-grep -q '^ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=' .env.production || need_keys=1
-grep -q '^ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=replace_me' .env.production && need_keys=1
+is_missing_or_placeholder "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" && need_keys=1
+is_missing_or_placeholder "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" && need_keys=1
+is_missing_or_placeholder "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" && need_keys=1
 
 if [[ "$need_keys" -eq 1 ]]; then
-  ENC_OUT="$($DOCKER compose -f docker-compose.dev.yml run --rm web bundle exec rails db:encryption:init)"
+  echo "==> Trying rails db:encryption:init"
+  ENC_OUT="$($DOCKER compose -f docker-compose.dev.yml run --rm web bundle exec rails db:encryption:init 2>&1 || true)"
   echo "$ENC_OUT"
 
-  AR_DET="$(echo "$ENC_OUT" | awk -F= '/ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=/{print $2}' | tail -n1)"
-  AR_SALT="$(echo "$ENC_OUT" | awk -F= '/ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=/{print $2}' | tail -n1)"
-  AR_PRI="$(echo "$ENC_OUT" | awk -F= '/ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=/{print $2}' | tail -n1)"
+  AR_DET="$(echo "$ENC_OUT" | awk -F= '/ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=/{print $2}' | tail -n1 | tr -d '\r')"
+  AR_SALT="$(echo "$ENC_OUT" | awk -F= '/ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=/{print $2}' | tail -n1 | tr -d '\r')"
+  AR_PRI="$(echo "$ENC_OUT" | awk -F= '/ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=/{print $2}' | tail -n1 | tr -d '\r')"
 
-  [[ -n "$AR_DET" && -n "$AR_SALT" && -n "$AR_PRI" ]] || { echo "ERROR: failed parsing encryption keys"; exit 1; }
+  [[ -n "$AR_DET" ]] && set_env_key "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" "$AR_DET"
+  [[ -n "$AR_SALT" ]] && set_env_key "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" "$AR_SALT"
+  [[ -n "$AR_PRI" ]] && set_env_key "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" "$AR_PRI"
 
-  if grep -q '^ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=' .env.production; then
-    sed -i "s|^ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=.*|ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${AR_DET}|" .env.production
-  else
-    echo "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${AR_DET}" >> .env.production
+  # final guard: if still missing, generate local secure keys
+  if is_missing_or_placeholder "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY"; then
+    set_env_key "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" "$(openssl rand -hex 32)"
   fi
-
-  if grep -q '^ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=' .env.production; then
-    sed -i "s|^ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=.*|ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${AR_SALT}|" .env.production
-  else
-    echo "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${AR_SALT}" >> .env.production
+  if is_missing_or_placeholder "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY"; then
+    set_env_key "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" "$(openssl rand -hex 32)"
   fi
-
-  if grep -q '^ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=' .env.production; then
-    sed -i "s|^ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=.*|ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${AR_PRI}|" .env.production
-  else
-    echo "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${AR_PRI}" >> .env.production
+  if is_missing_or_placeholder "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT"; then
+    set_env_key "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" "$(openssl rand -hex 32)"
   fi
 fi
 
