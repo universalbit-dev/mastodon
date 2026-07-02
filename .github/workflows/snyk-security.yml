@@ -2,9 +2,9 @@ name: Snyk Security Scan
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ unbt, main, master ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ unbt, main, master ]
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
@@ -12,17 +12,15 @@ on:
 jobs:
   snyk-scan:
     runs-on: ubuntu-latest
-    environment: snyk  
-    
+    environment: snyk
+
     permissions:
       contents: read
-      security-events: write
-      actions: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -33,6 +31,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: yarn
 
       - name: Enable Corepack and set correct Yarn version (for Yarn 4)
         run: |
@@ -48,22 +47,32 @@ jobs:
           else
             echo "✅ SNYK_TOKEN secret is configured"
           fi
-      
+
       - name: Install Node dependencies
         if: hashFiles('package.json') != ''
-        run: yarn install
+        run: yarn install --immutable
 
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/cli@master
+      - name: Run Snyk Open Source scan
+        uses: snyk/actions/node@master
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
+          command: test
           args: --all-projects --severity-threshold=medium
 
+      - name: Run Snyk Code scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: code test
+          args: --severity-threshold=medium
+
       - name: Run Snyk Monitor (track project)
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: snyk/actions/cli@master
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/unbt' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: snyk/actions/node@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
