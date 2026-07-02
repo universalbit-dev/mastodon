@@ -1,0 +1,11 @@
+{
+  auto_https disable_redirects
+}
+
+https://localhost {
+  tls internal
+
+  @api path /api/v1/streaming* /api/v1/streaming/* /streaming* /streaming/*
+  reverse_proxy @api streaming:4000
+  reverse_proxy web:3000
+}
